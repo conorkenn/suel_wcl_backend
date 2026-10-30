@@ -1,3 +1,5 @@
+You will need to create a .env for your WCL_CLIENT_ID and WCL_CLIENT_SECRET
+
 npm install
 
 npm run dev
