@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "test": "tsx --test src/routes/encounters.test.ts src/routes/characters.test.ts"
+    "test": "tsx --test src/routes/encounters.test.ts src/routes/characters.test.ts src/routes/comparisons.test.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

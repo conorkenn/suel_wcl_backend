@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import apiRoutes from './routes/api.js'
 import characterRoutes from './routes/characters.js'
+import comparisonRoutes from './routes/comparisons.js'
 import encounterRoutes from './routes/encounters.js'
 
 const app = express()
@@ -15,6 +16,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/api', apiRoutes)
 app.use('/api', characterRoutes)
+app.use('/api', comparisonRoutes)
 app.use('/api', encounterRoutes)
 
 app.listen(PORT, () => {

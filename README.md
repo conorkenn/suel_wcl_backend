@@ -36,6 +36,7 @@ GET http://localhost:3000/api/character?name=sueldh&server=stormrage&region=US
 GET http://localhost:3000/api/character/recent-reports?name=sueldh&server=stormrage&region=US&limit=20
 GET http://localhost:3000/api/character/encounter-attempts?name=sueldh&server=stormrage&region=US&encounterID=3492&difficulty=5
 GET http://localhost:3000/api/character/attempt-details?reportCode=REPORT_CODE&fightID=12&characterName=sueldh&server=stormrage
+GET http://localhost:3000/api/character/attempt-comparison?reportCode=REPORT_CODE&fightID=12&characterName=sueldh&server=stormrage
 GET http://localhost:3000/api/expansions
 GET http://localhost:3000/api/expansions/latest/zones
 GET http://localhost:3000/api/expansions/latest/raids
@@ -69,3 +70,11 @@ retrieve fight metadata and Warcraft Logs player details for that fight. Add
 `characterName` and `server` together to also get that character's class and spec for the
 specific attempt; use that spec when querying rankings. Without those parameters,
 `player` and `characterFound` are `null`; inspect `playerDetails` directly.
+
+Use `/api/character/attempt-comparison` to compare a selected fight with up to 10 top-ranked
+logs for the same encounter, difficulty, class, and spec. It reports damage done and taken
+per second, casts per minute, damage share, and damage per cast for each ability. Ability rows
+are sorted by the largest DPS shortfall versus the benchmark median. Metrics are normalized
+by fight duration, and `benchmark.sampleSize` shows how many ranked logs could be matched.
+Warcraft Logs does not permit raid-size filters for flexibly-sized raid zones, so the response
+includes the selected and benchmark logs' observed roster sizes instead.
