@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import apiRoutes from './routes/api.js'
+import encounterRoutes from './routes/encounters.js'
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -12,6 +13,7 @@ app.get('/health', (_req, res) => {
 })
 
 app.use('/api', apiRoutes)
+app.use('/api', encounterRoutes)
 
 app.listen(PORT, () => {
     console.log('CLIENT_ID loaded:', !!process.env.WCL_CLIENT_ID)

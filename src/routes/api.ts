@@ -287,4 +287,119 @@ router.get('/report/:code/fight/:fightID/events', async (req: Request, res: Resp
   }
 })
 
+// GET /api/report/:code/fight/:fightID/full
+// Returns fight metadata + actors + events in one response
+router.get('/report/:code/fight/:fightID/full', async (req: Request, res: Response) => {
+  try {
+    const { code, fightID } = req.params
+    const dataType = (req.query.dataType as string) || 'All'
+    const startTime = req.query.startTime ? Number(req.query.startTime) : undefined
+
+    const data = await wclQuery<{
+      reportData: {
+        report: {
+          code: string
+          title: string
+          startTime: number
+          endTime: number
+          masterData: {
+            actors: Array<{
+              id: number
+              name: string
+              type: string
+              subType: string
+              server: string | null
+            }>
+          }
+          fights: Array<{
+            id: number
+            name: string
+            startTime: number
+            endTime: number
+            encounterID: number
+            difficulty: number
+            kill: boolean
+          }>
+          events: {
+            data: unknown[]
+            nextPageTimestamp: number | null
+          }
+        }
+      }
+    }>(
+      `
+      query FullFight(
+        $code: String!
+        $fightID: Int!
+        $dataType: EventDataType
+        $startTime: Float
+      ) {
+        reportData {
+          report(code: $code) {
+            code
+            title
+            startTime
+            endTime
+            masterData {
+              actors {
+                id
+                name
+                type
+                subType
+                server
+              }
+            }
+            fights(fightIDs: [$fightID]) {
+              id
+              name
+              startTime
+              endTime
+              encounterID
+              difficulty
+              kill
+            }
+            events(
+              fightIDs: [$fightID]
+              dataType: $dataType
+              startTime: $startTime
+              limit: 10000
+              useActorIDs: true
+              useAbilityIDs: true
+            ) {
+              data
+              nextPageTimestamp
+            }
+          }
+        }
+      }
+    `,
+      {
+        code,
+        fightID: Number(fightID),
+        dataType,
+        startTime,
+      }
+    )
+
+    const report = data.reportData.report
+    const fight = report.fights[0] ?? null
+
+    res.json({
+      report: {
+        code: report.code,
+        title: report.title,
+        startTime: report.startTime,
+        endTime: report.endTime,
+      },
+      fight,
+      actors: report.masterData.actors,
+      events: report.events,
+    })
+  } catch (err) {
+    console.error(err)
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: message })
+  }
+})
+
 export default router
