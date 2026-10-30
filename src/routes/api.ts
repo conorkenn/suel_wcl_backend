@@ -231,4 +231,60 @@ router.get('/character/recent-reports', async (req: Request, res: Response) => {
   }
 })
 
+router.get('/report/:code/fight/:fightID/events', async (req: Request, res: Response) => {
+  try {
+    const { code, fightID } = req.params
+    const dataType = (req.query.dataType as string) || 'Deaths' // try Deaths first
+    const startTime = req.query.startTime ? Number(req.query.startTime) : undefined
+
+    const data = await wclQuery<{
+      reportData: {
+        report: {
+          events: {
+            data: unknown[]
+            nextPageTimestamp: number | null
+          }
+        }
+      }
+    }>(
+      `
+      query FightEvents(
+        $code: String!
+        $fightID: Int!
+        $dataType: EventDataType
+        $startTime: Float
+      ) {
+        reportData {
+          report(code: $code) {
+            events(
+              fightIDs: [$fightID]
+              dataType: $dataType
+              startTime: $startTime
+              limit: 10000
+              useActorIDs: true
+              useAbilityIDs: true
+            ) {
+              data
+              nextPageTimestamp
+            }
+          }
+        }
+      }
+    `,
+      {
+        code,
+        fightID: Number(fightID),
+        dataType,
+        startTime,
+      }
+    )
+
+    res.json(data.reportData.report.events)
+  } catch (err) {
+    console.error(err)
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: message })
+  }
+})
+
 export default router
