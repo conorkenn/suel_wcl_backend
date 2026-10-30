@@ -34,6 +34,8 @@ GET http://localhost:3000/api/rate-limit
 GET http://localhost:3000/api/report/YOUR_REPORT_CODE
 GET http://localhost:3000/api/character?name=sueldh&server=stormrage&region=US
 GET http://localhost:3000/api/character/recent-reports?name=sueldh&server=stormrage&region=US&limit=20
+GET http://localhost:3000/api/character/encounter-attempts?name=sueldh&server=stormrage&region=US&encounterID=3492&difficulty=5
+GET http://localhost:3000/api/character/attempt-details?reportCode=REPORT_CODE&fightID=12&characterName=sueldh&server=stormrage
 GET http://localhost:3000/api/expansions
 GET http://localhost:3000/api/expansions/latest/zones
 GET http://localhost:3000/api/expansions/latest/raids
@@ -57,3 +59,13 @@ Encounter rankings return DPS parses for the requested class. `specName`, `diffi
 `page`, and `raidSize` are optional. `raidSize` filters rankings by raid group size; it
 does not limit how many rankings are returned. Encounter IDs, supported class/spec names,
 difficulties, and raid sizes come from Warcraft Logs.
+
+Use `/api/character/encounter-attempts` to look up a character's recent attempts for an
+encounter. It requires `name`, `server`, and `encounterID`; `region` defaults to `US`,
+`difficulty` is optional, and pagination supports `page` and `limit` (1-25). The response
+includes report codes and fight IDs for choosing an attempt to compare.
+Use `/api/character/attempt-details` with a selected attempt's report code and fight ID to
+retrieve fight metadata and Warcraft Logs player details for that fight. Add
+`characterName` and `server` together to also get that character's class and spec for the
+specific attempt; use that spec when querying rankings. Without those parameters,
+`player` and `characterFound` are `null`; inspect `playerDetails` directly.
