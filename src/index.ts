@@ -20,8 +20,6 @@ app.use('/api', comparisonRoutes)
 app.use('/api', encounterRoutes)
 
 app.listen(PORT, () => {
-    console.log('CLIENT_ID loaded:', !!process.env.WCL_CLIENT_ID)
-console.log('CLIENT_SECRET loaded:', !!process.env.WCL_CLIENT_SECRET)
   console.log(`WCL backend running on http://localhost:${PORT}`)
   console.log('Endpoints:')
   console.log('  GET /health')
