@@ -78,3 +78,12 @@ are sorted by the largest DPS shortfall versus the benchmark median. Metrics are
 by fight duration, and `benchmark.sampleSize` shows how many ranked logs could be matched.
 Warcraft Logs does not permit raid-size filters for flexibly-sized raid zones, so the response
 includes the selected and benchmark logs' observed roster sizes instead.
+The response's `talentComparison` compares the selected player's talents with picks in the
+matched benchmark logs. `commonBenchmarkTalentsNotSelected` lists talents used in at least
+half of those logs but absent from the selected build; these are observations, not talent
+recommendations. Talent comparison is marked unavailable when combatant talent data is
+missing. WCL's `talentTree` contains talent and node IDs rather than display names, so these
+entries expose IDs and ranks; `name` is null when no talent name is included in the log data.
+Talent alternatives are compared by node ID so a different choice in the same node is not
+incorrectly reported as an entirely missing talent; `playerSelected[].benchmark` includes
+both the exact talent pick rate and the node pick rate.

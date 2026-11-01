@@ -1,5 +1,11 @@
 import { Request, Response, Router } from 'express'
-import { countPlayers, findPlayerDetails, isRecord } from './character-utils.js'
+import {
+  countPlayers,
+  findPlayerDetails,
+  isRecord,
+  type PlayerDetailsEntry,
+  type PlayerTalent,
+} from './character-utils.js'
 import { wclQuery } from '../wcl.js'
 
 type WclQuery = typeof wclQuery
@@ -37,6 +43,15 @@ interface LogMetrics {
   damageTaken: Map<string, AbilityValue>
   casts: Map<string, AbilityValue>
   durationMs: number
+}
+
+interface TalentFrequency {
+  id: string
+  name: string | null
+  nodeID: string | null
+  pickedIn: number
+  sampleSize: number
+  pickRate: number
 }
 
 const parsePositiveInteger = (value: unknown): number | undefined => {
@@ -233,6 +248,103 @@ function rateFor(metric: AbilityMetric, value: number, durationMs: number): numb
   return metric === 'casts'
     ? value / (durationSeconds / 60)
     : value / durationSeconds
+}
+
+function buildTalentComparison(
+  playerTalents: PlayerTalent[] | undefined,
+  benchmarkPlayers: PlayerDetailsEntry[]
+) {
+  const playersWithTalentData = benchmarkPlayers.filter(
+    (player): player is PlayerDetailsEntry & { talents: PlayerTalent[] } =>
+      Array.isArray(player.talents) && player.talents.length > 0
+  )
+  const sampleSize = playersWithTalentData.length
+  const frequencies = new Map<string, TalentFrequency>()
+  const nodePickCounts = new Map<string, number>()
+
+  for (const benchmarkPlayer of playersWithTalentData) {
+    const seenInLog = new Set<string>()
+    const seenNodesInLog = new Set<string>()
+    for (const talent of benchmarkPlayer.talents) {
+      if (!seenInLog.has(talent.id)) {
+        seenInLog.add(talent.id)
+        const current = frequencies.get(talent.id)
+        const pickedIn = (current?.pickedIn ?? 0) + 1
+        frequencies.set(talent.id, {
+          id: talent.id,
+          name: talent.name,
+          nodeID: talent.nodeID,
+          pickedIn,
+          sampleSize,
+          pickRate: (pickedIn / sampleSize) * 100,
+        })
+      }
+
+      if (talent.nodeID && !seenNodesInLog.has(talent.nodeID)) {
+        seenNodesInLog.add(talent.nodeID)
+        nodePickCounts.set(talent.nodeID, (nodePickCounts.get(talent.nodeID) ?? 0) + 1)
+      }
+    }
+  }
+
+  const playerTalentIDs = new Set((playerTalents ?? []).map((talent) => talent.id))
+  const playerNodeIDs = new Set(
+    (playerTalents ?? []).flatMap((talent) => talent.nodeID ? [talent.nodeID] : [])
+  )
+  const playerSelected = (playerTalents ?? [])
+    .map((talent) => {
+      const frequency = frequencies.get(talent.id)
+      const nodePickedIn = talent.nodeID ? nodePickCounts.get(talent.nodeID) ?? 0 : null
+      const alternatives = talent.nodeID
+        ? [...frequencies.values()]
+            .filter(
+              (candidate) =>
+                candidate.nodeID === talent.nodeID && candidate.id !== talent.id
+            )
+            .sort((a, b) => b.pickRate - a.pickRate)
+        : []
+
+      return {
+        id: talent.id,
+        name: talent.name,
+        rank: talent.rank,
+        nodeID: talent.nodeID,
+        benchmark: {
+          id: talent.id,
+          name: talent.name,
+          nodeID: talent.nodeID,
+          pickedIn: frequency?.pickedIn ?? 0,
+          sampleSize,
+          pickRate: frequency?.pickRate ?? 0,
+          nodePickedIn,
+          nodePickRate: nodePickedIn === null || sampleSize === 0
+            ? null
+            : (nodePickedIn / sampleSize) * 100,
+          alternatives,
+        },
+      }
+    })
+    .sort((a, b) => a.benchmark.pickRate - b.benchmark.pickRate)
+
+  const commonBenchmarkTalentsNotSelected = [...frequencies.values()]
+    .filter(
+      (talent) =>
+        talent.pickRate >= 50 &&
+        !playerTalentIDs.has(talent.id) &&
+        (!talent.nodeID || !playerNodeIDs.has(talent.nodeID))
+    )
+    .sort((a, b) => b.pickRate - a.pickRate)
+  const available = Boolean(playerTalents?.length && sampleSize > 0 && frequencies.size > 0)
+
+  return {
+    available,
+    reason: available
+      ? null
+      : 'Talent data was not available or could not be parsed for the attempt and benchmark logs.',
+    benchmarkSampleSize: sampleSize,
+    playerSelected,
+    commonBenchmarkTalentsNotSelected,
+  }
 }
 
 function compareRate(
@@ -482,6 +594,7 @@ export function createComparisonsRouter(queryWcl: WclQuery = wclQuery) {
         metadataVariables
       )
 
+      const benchmarkPlayers: PlayerDetailsEntry[] = []
       const comparisonLogs: Array<ComparisonLog & { raidSize: number }> = rankingEntries.flatMap((entry, index) => {
         const candidate = metadata.reportData[`candidate${index}`]
         if (!isRecord(candidate)) return []
@@ -506,6 +619,7 @@ export function createComparisonsRouter(queryWcl: WclQuery = wclQuery) {
           return []
         }
 
+        benchmarkPlayers.push(candidatePlayer)
         return [
           {
             ...entry,
@@ -664,6 +778,7 @@ export function createComparisonsRouter(queryWcl: WclQuery = wclQuery) {
           spec: selectedSpec,
           server: player.server,
         },
+        talentComparison: buildTalentComparison(player.talents, benchmarkPlayers),
         benchmark: {
           method: 'median',
           requestedParses: 10,

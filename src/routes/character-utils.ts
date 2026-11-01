@@ -3,6 +3,13 @@ interface PlayerSpec {
   count: number
 }
 
+export interface PlayerTalent {
+  id: string
+  name: string | null
+  rank: number | null
+  nodeID: string | null
+}
+
 export interface PlayerDetailsEntry {
   name?: string
   id?: number
@@ -11,6 +18,7 @@ export interface PlayerDetailsEntry {
   region?: string
   icon?: string
   specs?: PlayerSpec[]
+  talents?: PlayerTalent[]
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -27,6 +35,47 @@ function toPlayerDetailsEntry(value: unknown): PlayerDetailsEntry | undefined {
           : []
       )
     : undefined
+  const combatantInfo = isRecord(value.combatantInfo) ? value.combatantInfo : undefined
+  const rawTalents = Array.isArray(combatantInfo?.talentTree)
+    ? combatantInfo.talentTree
+    : Array.isArray(combatantInfo?.talents)
+      ? combatantInfo.talents
+    : Array.isArray(value.talents)
+      ? value.talents
+      : undefined
+  const talents = rawTalents?.flatMap((entry) => {
+    if (typeof entry === 'number' || typeof entry === 'string') {
+      const id = String(entry)
+      return [{ id, name: null, rank: null, nodeID: null }]
+    }
+
+    if (!isRecord(entry)) return []
+
+    const rawID = entry.id ?? entry.guid
+    if (typeof rawID !== 'number' && typeof rawID !== 'string') return []
+
+    const rank =
+      typeof entry.rank === 'number'
+        ? entry.rank
+        : typeof entry.points === 'number'
+          ? entry.points
+          : null
+    if (rank === 0) return []
+
+    const id = String(rawID)
+    const nodeID =
+      typeof entry.nodeID === 'number' || typeof entry.nodeID === 'string'
+        ? String(entry.nodeID)
+        : null
+    const name =
+      typeof entry.name === 'string'
+        ? entry.name
+        : typeof entry.abilityName === 'string'
+          ? entry.abilityName
+          : null
+
+    return [{ id, name, rank, nodeID }]
+  })
 
   return {
     name: value.name,
@@ -36,6 +85,7 @@ function toPlayerDetailsEntry(value: unknown): PlayerDetailsEntry | undefined {
     region: typeof value.region === 'string' ? value.region : undefined,
     icon: typeof value.icon === 'string' ? value.icon : undefined,
     specs,
+    talents,
   }
 }
 

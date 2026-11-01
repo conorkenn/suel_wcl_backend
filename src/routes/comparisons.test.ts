@@ -68,7 +68,12 @@ function playerDetails(name: string, id: number, server = 'Stormrage') {
   }
 }
 
-function raidPlayerDetails(name: string, id: number, size: number) {
+function raidPlayerDetails(
+  name: string,
+  id: number,
+  size: number,
+  talents: Array<{ id: number; name: string; rank: number; nodeID: number }> = []
+) {
   return {
     data: {
       playerDetails: {
@@ -79,6 +84,10 @@ function raidPlayerDetails(name: string, id: number, size: number) {
             type: 'DemonHunter',
             server: 'Stormrage',
             specs: [{ spec: 'Havoc', count: 10 }],
+            combatantInfo: {
+              talents: [],
+              talentTree: talents.map(({ id, rank, nodeID }) => ({ id, rank, nodeID })),
+            },
           },
           ...Array.from({ length: size - 1 }, (_, index) => ({
             name: `RaidMember${index}`,
@@ -101,6 +110,13 @@ test('attempt comparison calculates per-ability metrics against the top-10 media
       type: 'DemonHunter',
       server: 'Stormrage',
       specs: [{ spec: 'Havoc', count: 10 }],
+      combatantInfo: {
+        talents: [],
+        talentTree: [
+          { id: 1001, rank: 1, nodeID: 9001 },
+          { id: 1002, rank: 2, nodeID: 9002 },
+        ],
+      },
     },
     ...Array.from({ length: 19 }, (_, index) => ({
       name: `Player${index}`,
@@ -122,7 +138,11 @@ test('attempt comparison calculates per-ability metrics against the top-10 media
       `candidate${index}`,
       {
         fights: [{ id: index + 1, startTime: 1000, endTime: 201000 }],
-        playerDetails: raidPlayerDetails(entry.name, index + 1, 20),
+        playerDetails: raidPlayerDetails(entry.name, index + 1, 20, [
+          ...(index < 5 ? [{ id: 1001, name: 'Talent A', rank: 1, nodeID: 9001 }] : []),
+          ...(index < 6 ? [{ id: 1004, name: 'Talent D', rank: 1, nodeID: 9002 }] : []),
+          ...(index < 8 ? [{ id: 1003, name: 'Talent C', rank: 1, nodeID: 9003 }] : []),
+        ]),
       },
     ])
   )
@@ -210,6 +230,66 @@ test('attempt comparison calculates per-ability metrics against the top-10 media
     assert.equal(body.benchmark.playerRaidSize, 20)
     assert.equal(body.benchmark.raidSizeFilterApplied, false)
     assert.equal(body.benchmark.topLogs[0].raidSize, 20)
+    assert.deepEqual(body.talentComparison, {
+      available: true,
+      reason: null,
+      benchmarkSampleSize: 8,
+      playerSelected: [
+        {
+          id: '1002',
+          name: null,
+          rank: 2,
+          nodeID: '9002',
+          benchmark: {
+            id: '1002',
+            name: null,
+            nodeID: '9002',
+            pickedIn: 0,
+            sampleSize: 8,
+            pickRate: 0,
+            nodePickedIn: 6,
+            nodePickRate: 75,
+            alternatives: [
+              {
+                id: '1004',
+                name: null,
+                nodeID: '9002',
+                pickedIn: 6,
+                sampleSize: 8,
+                pickRate: 75,
+              },
+            ],
+          },
+        },
+        {
+          id: '1001',
+          name: null,
+          rank: 1,
+          nodeID: '9001',
+          benchmark: {
+            id: '1001',
+            name: null,
+            nodeID: '9001',
+            pickedIn: 5,
+            sampleSize: 8,
+            pickRate: 62.5,
+            nodePickedIn: 5,
+            nodePickRate: 62.5,
+            alternatives: [],
+          },
+        },
+      ],
+      commonBenchmarkTalentsNotSelected: [
+        {
+          id: '1003',
+          name: null,
+          nodeID: '9003',
+          pickedIn: 8,
+          sampleSize: 8,
+          pickRate: 100,
+        },
+      ],
+    })
     assert.equal(body.summary.damageDone.total, 1_200_000)
     assert.equal(body.summary.damageDone.damagePerSecond, 12_000)
     assert.equal(body.summary.damageDone.benchmarkMedian, 20_000)
@@ -275,6 +355,86 @@ test('attempt comparison calculates per-ability metrics against the top-10 media
   assert.match(mock.calls[3].query, /dataType:\s*DamageTaken/)
   assert.match(mock.calls[3].query, /dataType:\s*DamageTaken[\s\S]*?sourceID:\s*\$actor/)
   assert.match(mock.calls[3].query, /dataType:\s*Casts/)
+})
+
+test('attempt comparison marks talent comparison unavailable when no talents are parsed', async () => {
+  const mock = createMockQuery([
+    {
+      reportData: {
+        report: {
+          code: 'MyLog',
+          title: 'Raid night',
+          fights: [
+            {
+              id: 12,
+              name: "Ula'tek",
+              startTime: 0,
+              endTime: 100_000,
+              encounterID: 3492,
+              difficulty: 4,
+              kill: true,
+            },
+          ],
+          playerDetails: raidPlayerDetails('Sueldh', 100, 1),
+        },
+      },
+    },
+    {
+      worldData: {
+        encounter: {
+          id: 3492,
+          name: "Ula'tek",
+          characterRankings: {
+            data: [
+              {
+                name: 'Ranker',
+                server: { name: 'Stormrage' },
+                report: { code: 'TopLog', fightID: 1 },
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      reportData: {
+        candidate0: {
+          fights: [{ id: 1, startTime: 0, endTime: 100_000 }],
+          playerDetails: raidPlayerDetails('Ranker', 200, 1),
+        },
+      },
+    },
+    {
+      reportData: {
+        log0: {
+          damageDone: { data: { entries: [] } },
+          damageTaken: { data: { entries: [] } },
+          casts: { data: { entries: [] } },
+        },
+        log1: {
+          damageDone: { data: { entries: [] } },
+          damageTaken: { data: { entries: [] } },
+          casts: { data: { entries: [] } },
+        },
+      },
+    },
+  ])
+
+  await withRouter(createComparisonsRouter(mock.query), async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/character/attempt-comparison?reportCode=MyLog&fightID=12&characterName=Sueldh&server=Stormrage`
+    )
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.deepEqual(body.talentComparison, {
+      available: false,
+      reason:
+        'Talent data was not available or could not be parsed for the attempt and benchmark logs.',
+      benchmarkSampleSize: 0,
+      playerSelected: [],
+      commonBenchmarkTalentsNotSelected: [],
+    })
+  })
 })
 
 test('attempt comparison reports no matching logs when Warcraft Logs rankings are empty', async () => {
